@@ -40,6 +40,9 @@ docker compose exec ollama ollama pull qwen3:14b
 echo "=== Проверка/загрузка модели суммаризации qwen3.5:4b в Ollama ==="
 docker compose exec ollama ollama pull qwen3.5:4b
 
+echo "=== Проверка/загрузка модели GLM OCR (для скан-PDF) в Ollama ==="
+docker compose exec ollama ollama pull glm-ocr:latest
+
 echo ""
 echo "=== Сервисы запущены ==="
 echo "Triton Server:"
