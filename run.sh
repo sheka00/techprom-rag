@@ -33,9 +33,12 @@ docker compose down 2>/dev/null || true
 echo "=== Запуск всех сервисов: Qdrant, Triton, Encoder, Ollama, API, UI ==="
 docker compose up -d --build
 
-# 4. Загрузка LLM модели в Ollama (если ещё нет)
-echo "=== Проверка/загрузка модели qwen3:14b в Ollama ==="
+# 4. Загрузка LLM моделей в Ollama (если ещё нет)
+echo "=== Проверка/загрузка основной LLM qwen3:14b в Ollama ==="
 docker compose exec ollama ollama pull qwen3:14b
+
+echo "=== Проверка/загрузка модели суммаризации qwen3.5:4b в Ollama ==="
+docker compose exec ollama ollama pull qwen3.5:4b
 
 echo ""
 echo "=== Сервисы запущены ==="

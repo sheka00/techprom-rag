@@ -626,11 +626,12 @@ class MultimodalRAG:
 
 Результат:"""
         try:
-            # Используем новую модель qwen3.5:4b
+            # Маленькая быстрая модель для массовой суммаризации (не основная LLM)
+            summary_model = os.getenv("SUMMARY_MODEL", "qwen3.5:4b")
             raw_summary = self._call_ollama_api(
                 system_instr="Ты — сухой технический справочник. Твой ответ ВСЕГДА начинается сразу с фактов. Запрещено использовать любые вежливые слова, вступления или описания процесса.",
                 user_content=prompt,
-                model="qwen3.5:4b",
+                model=summary_model,
                 use_thinking=False,
                 options={"num_predict": 300, "num_ctx": 4096, "temperature": 0.0},
             )
