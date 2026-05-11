@@ -1,0 +1,30 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+venv/
+env/
+
+# Extracted images
+docx_images/*
+!docx_images/.gitkeep
+
+# Debug output and Large Data
+data/debug_chunks/
+data/ТИ/
+data/iteration_3_docs/
+
+# Model weights
+models/bge_model/1/
+models/**/*.bin
+models/**/*.pt
+models/**/*.onnx
+
+# Temporary/Exported files
+requirements_export.txt
+triton_export_env/
+*.onnx.data
+.ruff_cache/

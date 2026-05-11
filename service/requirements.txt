@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+aiohttp
+transformers
+pydantic>=2

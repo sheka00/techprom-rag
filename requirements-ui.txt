@@ -1,0 +1,7 @@
+gradio
+httpx
+pandas
+python-multipart
+anyio
+tabulate
+python-dotenv

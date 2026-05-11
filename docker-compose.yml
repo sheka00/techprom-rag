@@ -1,0 +1,152 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    restart: unless-stopped
+
+  triton:
+    image: nvcr.io/nvidia/tritonserver:25.01-py3
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ./models:/models
+    command: tritonserver --model-repository=/models
+    ports:
+      - "28000:8000"
+      - "28001:8001"
+      - "28002:8002"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sSf http://localhost:8000/v2/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  encoder:
+    build:
+      context: ./service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      TRITON_URL: http://triton:8000
+      MODEL_NAME: ${EMBEDDING_MODEL:-deepvk/USER-bge-m3}
+    ports:
+      - "28080:8000"
+    depends_on:
+      triton:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sSf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:--1}
+      - OLLAMA_MAX_LOADED_MODELS=1
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8005:8000"
+    depends_on:
+      qdrant:
+        condition: service_started
+      ollama:
+        condition: service_started
+      triton:
+        condition: service_healthy
+      encoder:
+        condition: service_healthy
+    environment:
+      - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:14b}
+      - ENABLE_THINKING=${ENABLE_THINKING:-True}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - OLLAMA_SEED=${OLLAMA_SEED:-42}
+      - TRITON_URL=${TRITON_URL:-http://triton:8000}
+      - TRITON_MODEL=${TRITON_MODEL:-bge_model}
+      - ENCODER_URL=${ENCODER_URL:-http://encoder:8000/encode}
+      - USE_TRITON=${USE_TRITON:-True}
+      - CHUNK_SIZE=${CHUNK_SIZE:-1500}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-100}
+      - RETRIEVER_K=${RETRIEVER_K:-15}
+      - OLLAMA_NUM_CTX=${OLLAMA_NUM_CTX:-16000}
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    volumes:
+      - ./app:/app/app
+      - ./docx_images:/app/docx_images
+      - /tmp:/tmp
+      - hf_cache:/root/.cache/huggingface
+      - ./data:/app/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  gradio-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    restart: unless-stopped
+    environment:
+      - API_URL=http://api:8000
+      - GRADIO_USER=techprom
+      - GRADIO_PASSWORD=techprom
+    command: python gradio_app.py
+    ports:
+      - "7860:7860"
+    depends_on:
+      api:
+        condition: service_started
+    volumes:
+      - ./app:/app/app
+      - ./gradio_app.py:/app/gradio_app.py
+      - ./docx_images:/app/docx_images
+      - ./data:/app/data
+      - hf_cache:/root/.cache/huggingface
+      - /tmp:/tmp
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  qdrant_storage:
+  hf_cache:
+  ollama_data:

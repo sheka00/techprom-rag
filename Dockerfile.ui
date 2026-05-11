@@ -1,0 +1,23 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Системные зависимости для Gradio (минимальные)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копируем и ставим "худые" зависимости
+COPY requirements-ui.txt .
+RUN pip install --no-cache-dir -r requirements-ui.txt
+
+# Копируем только сам скрипт интерфейса
+COPY gradio_app.py .
+
+# Порт Gradio
+EXPOSE 7860
+
+# Добавляем переменную окружения по умолчанию для поиска API
+ENV API_URL=http://api:8000
+
+CMD ["python", "gradio_app.py"]
