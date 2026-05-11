@@ -61,10 +61,9 @@
 - **`data/ТИ/`** — папка с Техническими Инструкциями.
 - **`data/iteration_3_docs/`** — расширенная база документов для третьего этапа.
 
-Для индексации документов в Qdrant выполните:
+Для индексации всех документов (ТИ и iteration_3_docs) выполните:
 ```bash
-docker exec -it techprom_rag-main-api-1 python3 -m app.reindex \
-  --folder data/название_вашей_папки --collection rag_ti_docs
+docker exec -it techprom-rag-api-1 python3 -m app.full_reindex
 ```
 
 ## 📡 Ключевые возможности
@@ -78,8 +77,7 @@ docker exec -it techprom_rag-main-api-1 python3 -m app.reindex \
 ### 3. Глобальная переиндексация
 Для индексации больших объемов документов используйте встроенный скрипт:
 ```bash
-docker exec -it techprom_rag-main-api-1 python3 -m app.reindex \
-  --folder data/docs --collection my_collection
+docker exec -it techprom-rag-api-1 python3 -m app.full_reindex
 ```
 
 ### 4. Бенчмаркинг
