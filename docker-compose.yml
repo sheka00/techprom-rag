@@ -101,6 +101,7 @@ services:
       - CHUNK_OVERLAP=${CHUNK_OVERLAP:-100}
       - RETRIEVER_K=${RETRIEVER_K:-15}
       - OLLAMA_NUM_CTX=${OLLAMA_NUM_CTX:-16000}
+      - GLM_OCR_URL=${GLM_OCR_URL:-http://ollama:11434/v1}
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     volumes:
       - ./app:/app/app
