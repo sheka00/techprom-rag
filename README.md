@@ -1,107 +1,152 @@
 # 🚀 Мультимодальный RAG + BGE-M3 на Triton Inference Server
 
-Комплексная система для поиска и извлечения информации из документов (DOCX, PDF) с поддержкой изображений и высокопроизводительным инференсом на TensorRT.
+Комплексная система для поиска и извлечения информации из документов (DOCX, PDF) с поддержкой OCR скан-PDF, табличных данных и высокопроизводительным инференсом на TensorRT.
 
 ## 📋 Описание проекта
 
-Проект включает в себя:
-- **RAG-сервис (FastAPI)** — основная логика поиска, парсинг документов (Docling/PyMuPDF4LLM), индексация в Qdrant и генерация ответов через Ollama.
+- **RAG-сервис (FastAPI)** — основная логика поиска, парсинг документов (Docling/PyMuPDF4LLM + GLM OCR fallback), индексация в Qdrant и генерация ответов через Ollama.
 - **Triton Inference Server** — инференс модели эмбеддингов `bge-m3` в формате TensorRT для максимальной производительности на GPU.
-- **Encoder Service (FastAPI wrapper)** — легковесный микросервис-обёртка для токенизации и связи с Triton, что изолирует основное приложение от тяжелых зависимостей (torch/transformers).
-- **Автоматизированный экспорт** — скрипты для перевода HuggingFace модели в ONNX → TensorRT.
+- **Encoder Service (FastAPI wrapper)** — микросервис-обёртка для токенизации и связи с Triton.
+- **Ollama** — хостит три модели: основную LLM, модель суммаризации и модель GLM OCR.
+- **Qdrant** — векторная база данных (3 коллекции: основная, таблицы, суммаризации).
 
 ## 📁 Структура проекта
 
 ```bash
 .
-├── run.sh                  # ЕДИНАЯ ТОЧКА ЗАПУСКА: экспорт + поднятие всех контейнеров
+├── run.sh                  # ЕДИНАЯ ТОЧКА ЗАПУСКА
 ├── docker-compose.yml      # Оркестрация: Qdrant, Triton, Encoder, Ollama, API, UI
 ├── app/                    # Основной RAG-сервис (FastAPI)
+│   ├── full_reindex.py     # Скрипт полной переиндексации
+│   ├── rag_service.py      # Логика RAG, суммаризации, поиска
+│   └── image_processing.py # Парсинг DOCX/PDF + GLM OCR fallback
 ├── service/                # Микросервис энкодера (FastAPI + Triton client)
 ├── scripts/                # Скрипты экспорта модели в ONNX/TensorRT
-├── models/                 # Репозиторий моделей Triton (TensorRT .plan файлы)
-├── client/                 # Python-клиент для прямого вызова Encoder Service
-├── data/                   # Данные (документы, изображения, БД)
-└── gradio_app.py           # Веб-интерфейс для чата с документами
+├── models/                 # Репозиторий моделей Triton (.plan файлы)
+├── data/                   # Документы (в .gitignore, добавляются вручную)
+│   ├── ТИ/                 # Технические Инструкции
+│   └── iteration_3_docs/   # Расширенная база документов
+└── gradio_app.py           # Веб-интерфейс (Gradio UI)
 ```
 
-## 🚀 Быстрый старт
+## 🚀 Быстрый старт (деплой с нуля)
 
-Репозиторий настроен так, что все тяжелые веса моделей и базы документов исключены из Git (`.gitignore`). Это позволяет клонировать и разворачивать проект моментально на любом сервере.
+Все тяжелые веса моделей и данные исключены из Git (`.gitignore`). Клонирование — мгновенное.
 
-1. **Клонируйте репозиторий:**
-   ```bash
-   git clone https://github.com/sheka00/techprom-rag.git
-   cd techprom-rag
-   ```
+### Шаг 1: Клонировать репозиторий
 
-2. **Запустите сборку и экспорт в фоне:**
-   Мастер-скрипт автоматически проверит наличие TensorRT-модели (и скомпилирует её при необходимости, ~5-10 мин), поднимет всю Docker-инфраструктуру и скачает нужные LLM. Чтобы процесс не прервался при закрытии терминала, используйте `nohup`:
-   ```bash
-   chmod +x run.sh scripts/convert_trt.sh
-   cp -n .env.example .env  # Создать .env, если его нет
-   nohup ./run.sh > build.log 2>&1 &
-   ```
+```bash
+git clone https://github.com/sheka00/techprom-rag.git
+cd techprom-rag
+```
 
-3. **Следите за логами и статусом:**
-   ```bash
-   tail -f build.log
-   docker compose ps
-   ```
+> ⚠️ Если клонирование выполнялось от `root`, а работаете как обычный пользователь, выполните:
+> ```bash
+> git config --global --add safe.directory $(pwd)
+> ```
 
-**Сервисы будут доступны по адресам:**
-- **RAG API:** [http://localhost:8005](http://localhost:8005)
-- **Gradio UI:** [http://localhost:7860](http://localhost:7860)
-- **Triton Server (metrics):** [http://localhost:8002/metrics](http://localhost:8002/metrics)
-- **Encoder (health):** [http://localhost:8080/health](http://localhost:8080/health)
+### Шаг 2: Подготовить окружение
 
-## 📂 Подготовка данных
+```bash
+chmod +x run.sh scripts/convert_trt.sh
+cp -n .env.example .env   # Создать .env из шаблона (если нет)
+```
 
-Поместите ваши документы (DOCX, PDF) в папку `data/`. Для работы системы понадобятся следующие датасеты (они добавлены в `.gitignore` из-за большого объема):
-- **`data/ТИ/`** — папка с Техническими Инструкциями.
-- **`data/iteration_3_docs/`** — расширенная база документов для третьего этапа.
+### Шаг 3: Запустить в фоне
 
-Для индексации всех документов (ТИ и iteration_3_docs) выполните:
+Скрипт автоматически:
+- Скомпилирует TensorRT-модель (`bge-m3`) при первом запуске (~5–10 мин)
+- Поднимет все сервисы (Qdrant, Triton, Encoder, Ollama, API, UI)
+- Скачает три модели в Ollama (см. ниже)
+
+```bash
+nohup ./run.sh > build.log 2>&1 &
+tail -f build.log
+```
+
+### Шаг 4: Добавить документы
+
+Скопируйте ваши DOCX/PDF в папки данных:
+
+```bash
+cp -r /path/to/your/ТИ/ data/ТИ/
+cp -r /path/to/your/docs/ data/iteration_3_docs/
+```
+
+### Шаг 5: Запустить индексацию
+
 ```bash
 docker exec -it techprom-rag-api-1 python3 -m app.full_reindex
 ```
 
-## 📡 Ключевые возможности
+Индексация создаёт три коллекции в Qdrant:
+- `rag_ti_docs` — основные текстовые чанки
+- `rag_ti_tables` — табличные данные
+- `rag_ti_summaries` — суммаризированные двойные чанки (для семантического поиска)
 
-### 1. Высокопроизводительные эмбеддинги
-Использование **TensorRT** через Triton Server позволяет обрабатывать сотни запросов в секунду с минимальной задержкой. Модель `bge-m3` оптимизирована для юридических и технических текстов.
+## 🤖 Модели Ollama
 
-### 2. Мультимодальный RAG
-Сервис извлекает не только текст, но и изображения из документов. При поиске наиболее релевантные изображения могут передаваться в LLM для анализа контекста.
+`run.sh` автоматически скачивает три модели:
 
-### 3. Глобальная переиндексация
-Для индексации больших объемов документов используйте встроенный скрипт:
+| Модель | Назначение | Размер |
+|---|---|---|
+| `qwen3:14b` | Основная LLM (генерация ответов) | ~9 GB |
+| `qwen3.5:4b` | Суммаризация чанков при индексации | ~2.5 GB |
+| `glm-ocr:latest` | OCR для скан-PDF (fallback) | ~8 GB |
+
+Проверить загруженные модели:
 ```bash
+docker exec -it techprom-rag-ollama-1 ollama list
+```
+
+## 📄 Обработка PDF
+
+Система использует двухуровневый fallback:
+
+1. **Docling** (основной путь) — структурированный парсинг PDF с сохранением таблиц и формул.
+2. **GLM OCR** (fallback) — если Docling вернул "мусор" (скан без текстового слоя), автоматически запускается layout-детекция (`PP-DocLayoutV3`) + распознавание текста через `glm-ocr:latest` в Ollama.
+
+## 📡 Адреса сервисов
+
+| Сервис | Адрес |
+|---|---|
+| Gradio UI | http://localhost:7860 |
+| RAG API | http://localhost:8005 |
+| Triton metrics | http://localhost:8002/metrics |
+| Encoder health | http://localhost:8080/health |
+| Qdrant UI | http://localhost:6333/dashboard |
+
+## 🔄 Переиндексация (обновление базы)
+
+```bash
+# Полная переиндексация (удаляет все коллекции и создаёт заново)
 docker exec -it techprom-rag-api-1 python3 -m app.full_reindex
 ```
 
-### 4. Бенчмаркинг
-Оцените качество поиска и ответов с помощью `LLM-судьи`:
+## 🛠 Разработка и диагностика
+
 ```bash
+# Проверить статус контейнеров
+docker compose ps
+
+# Логи API
+docker compose logs -f api
+
+# Логи Ollama
+docker compose logs -f ollama
+
+# Проверить эмбеддинги
+curl -X POST http://localhost:8080/encode \
+  -H "Content-Type: application/json" \
+  -d '{"query": "тест"}'
+
+# Бенчмаркинг качества RAG
 docker compose exec api python -m app.run_benchmark --docx data/test_questions.docx
 ```
 
-## 🛠 Разработка и тестирование
-
-**Ручная проверка эмбеддингов (через Encoder Service):**
-```bash
-curl -X POST http://localhost:8080/encode -H "Content-Type: application/json" -d '{"query": "привет"}'
-```
-
-**Нагрузочное тестирование (Locust):**
-```bash
-pip install locust
-locust -f locustfile.py --host http://localhost:8080 --headless -u 50 -r 5 -t 60s
-```
-
----
-
 ## ⚙️ Требования
-- **ОС:** Linux (рекомендуется)
-- **GPU:** NVIDIA (с NVIDIA Container Toolkit)
-- **ПО:** Docker Compose v2, Python 3.12+ (для локального экспорта моделей)
+
+- **ОС:** Linux
+- **GPU:** NVIDIA (16+ GB VRAM рекомендуется; минимум 12 GB)
+- **ПО:** Docker Compose v2, NVIDIA Container Toolkit
+- **Дисковое пространство:** ~30 GB (модели Ollama + TensorRT + данные)
