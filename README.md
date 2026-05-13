@@ -161,9 +161,26 @@ docker exec -it techprom-rag-api-1 python3 -m app.run_benchmark --docx data/benc
 **Результаты:**
 После завершения в папке `data/` появится файл `benchmark_report.json` с детальной статистикой по каждому вопросу (Retrieval Hit, LLM Judge Score, цитаты).
 
+## ⚠️ Диагностика и устранение проблем
+
+**Ошибка `safe.directory` при запуске от root:**
+Если вы клонировали репозиторий под другим пользователем или через `sudo`, git может выдать ошибку безопасности. Решение:
+```bash
+git config --global --add safe.directory "*"
+```
+
+**Недостаточно памяти GPU (OOM):**
+Если Ollama или Triton падают с ошибкой Out of Memory:
+1. Уменьшите `OLLAMA_NUM_CTX` в `.env` (например, до 8000).
+2. Настройте `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` (уже включено в `docker-compose.yml`).
+3. Используйте модель `qwen3.5:4b` как основную, если 14b не помещается.
+
+**Проблема с загрузкой весов (HuggingFace):**
+Если Docling не может скачать модели разметки, проверьте доступ к HuggingFace. Можно пробросить прокси или использовать кешированный волюм `hf_cache`.
+
 ## ⚙️ Требования
 
-- **ОС:** Linux
-- **GPU:** NVIDIA (16+ GB VRAM рекомендуется; минимум 12 GB)
-- **ПО:** Docker Compose v2, NVIDIA Container Toolkit
-- **Дисковое пространство:** ~30 GB (модели Ollama + TensorRT + данные)
+- **ОС:** Linux (Ubuntu 22.04+ рекомендуется)
+- **GPU:** NVIDIA (16+ GB VRAM рекомендуется для qwen3:14b; минимум 12 GB)
+- **ПО:** Docker Compose v2, NVIDIA Container Toolkit, CUDA 12.x
+- **Дисковое пространство:** ~30-40 GB (модели Ollama + TensorRT веса + образы)
