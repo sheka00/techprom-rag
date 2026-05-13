@@ -28,3 +28,9 @@ requirements_export.txt
 triton_export_env/
 *.onnx.data
 .ruff_cache/
+
+# Logs and Reports
+*.log
+data/*.json
+data/benchmark_report.json
+
