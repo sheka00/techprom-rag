@@ -144,9 +144,13 @@ curl -X POST http://localhost:8080/encode \
 
 Оцените качество поиска и ответов с помощью автоматизированного теста с `LLM-судьёй`. Скрипт проходит по вопросам из DOCX-файла, запрашивает ответ у RAG и просит основную модель (qwen3:14b) оценить правильность ответа по сравнению с эталоном.
 
-**Запуск полного теста:**
+**Примеры запуска:**
 ```bash
+# Базовый набор (157 вопросов)
 docker exec -it techprom-rag-api-1 python3 -m app.run_benchmark --docx data/тестовые_вопросы.docx
+
+# Набор Iteration 3 (76 вопросов)
+docker exec -it techprom-rag-api-1 python3 -m app.run_benchmark --docx data/benchmark_iteration_3.docx --report data/benchmark_report_iteration_3.json
 ```
 
 **Дополнительные параметры:**
